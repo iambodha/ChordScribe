@@ -3,18 +3,57 @@
  */
 
 const fs = require("fs");
-const { execSync } = require("child_process");
+const path = require("path");
 
-const DOCS_CMD  = "find . -type f -name *.md | xargs cat $1";
-// const docs = exports.docs = execSync(DOCS_CMD, {timeout: 0, maxBuffer: 1024 * 1024 * 1024}).toString().replace(/\n```[\s\S]+?\n```\n/g, "");
+// Recursively find all files with the specified extension in the given directory
+function getAllFilesWithExtension(dirPath, extension) {
+  let filesWithExtension = [];
+  const files = fs.readdirSync(dirPath);
 
-const text = exports.text = fs.readdirSync("text")
-  .filter(filename => /\.txt$/.test(filename))
-  .map(filename => fs.readFileSync(`text/${filename}`))
-  .join("\n\n");
+  files.forEach((file) => {
+    const filePath = path.join(dirPath, file);
+    const stat = fs.statSync(filePath);
 
-const CODE_CMD = "find . -type f -name *.js | xargs cat $1";
-const code = exports.code = execSync(CODE_CMD, {timeout: 0, maxBuffer: 1024 * 1024 * 1024}).toString();
+    if (stat.isDirectory()) {
+      filesWithExtension = filesWithExtension.concat(getAllFilesWithExtension(filePath, extension));
+    } else if (path.extname(file) === extension) {
+      filesWithExtension.push(filePath);
+    }
+  });
+
+  return filesWithExtension;
+}
+
+// Read and concatenate all .md files in the current directory and its subdirectories
+try {
+  const mdFiles = getAllFilesWithExtension('.', '.md');
+  const docs = exports.docs = mdFiles
+    .map((filePath) => fs.readFileSync(filePath, 'utf8'))
+    .join("\n")
+    .replace(/\n```[\s\S]+?\n```\n/g, "");  // Optional regex to remove code blocks
+} catch (error) {
+  console.error("Error reading markdown files:", error);
+}
+
+// Read and concatenate all .txt files in the "text" directory
+try {
+  const text = exports.text = fs.readdirSync("text")
+    .filter(filename => /\.txt$/.test(filename))
+    .map(filename => fs.readFileSync(`text/${filename}`, 'utf8'))
+    .join("\n\n");
+} catch (error) {
+  console.error("Error reading text files:", error);
+}
+
+// Read and concatenate all .js files in the current directory and its subdirectories
+try {
+  const jsFiles = getAllFilesWithExtension('.', '.js');
+  const code = exports.code = jsFiles
+    .map((filePath) => fs.readFileSync(filePath, 'utf8'))
+    .join("\n");
+} catch (error) {
+  console.error("Error reading JavaScript files:", error);
+}
 
 // http://www3.nd.edu/~busiforc/handouts/cryptography/Letter%20Frequencies.html
 const POPULAR_TRIGRAMS = {
@@ -84,10 +123,9 @@ function generate_text_from(dictionary) {
   return tokens.join(" ");
 }
 
-
 function repeat(string, times) {
   let result = [];
-  for (let i=0; i < times; i++) {
+  for (let i = 0; i < times; i++) {
     result.push(string);
   }
   return result.join(" ");
