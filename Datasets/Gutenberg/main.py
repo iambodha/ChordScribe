@@ -290,7 +290,7 @@ class GutenbergHarvester:
                         parsed_url = urlparse(next_url)
                         query_params = parse_qs(parsed_url.query)
                         if 'filetypes[]' not in query_params:
-                            next_url = f"{next_url}&filetypes[]=txt&langs[]=en"
+                            next_url = f"{next_url}&filetypes[]=txt&langs[]=de"
                     
                     return links, next_url
             except asyncio.TimeoutError:
@@ -303,7 +303,7 @@ class GutenbergHarvester:
     async def harvest_books(self):
         """Main harvesting method with enhanced error handling and reporting."""
         current_url = self.base_url
-        params = {'filetypes[]': 'txt', 'langs[]': 'en'}
+        params = {'filetypes[]': 'txt', 'langs[]': 'de'}
         
         try:
             while True:
