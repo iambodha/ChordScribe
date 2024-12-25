@@ -3,6 +3,11 @@ from bs4 import BeautifulSoup
 import asyncio
 import aiohttp
 import aiofiles
+import ssl
+
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 import zipfile
 import os
 import re
@@ -18,6 +23,7 @@ logging.basicConfig(
 
 class GutenbergHarvester:
     def __init__(self, output_dir: str = "gutenberg_books"):
+        print("\n[INIT] Initializing GutenbergHarvester...")
         self.base_url = "https://www.gutenberg.org/robot/harvest"
         self.mirror_urls = [
             "https://www.gutenberg.org/files",
@@ -35,9 +41,12 @@ class GutenbergHarvester:
         # Create necessary directories
         for directory in [self.download_dir, self.extracted_dir, self.processed_dir]:
             directory.mkdir(exist_ok=True)
+            print(f"[INIT] Created directory: {directory}")
+        print("[INIT] Initialization complete\n")
 
     def generate_mirror_urls(self, book_id: str) -> List[str]:
         """Generate alternative URLs for different mirrors."""
+        print(f"[MIRRORS] Generating mirror URLs for book ID: {book_id}")
         urls = []
         id_parts = "/".join(book_id[i:i+1] for i in range(0, len(book_id)-1))
         
@@ -54,11 +63,13 @@ class GutenbergHarvester:
         Validate ZIP file integrity and content.
         Returns (is_valid, error_message)
         """
+        print(f"[VALIDATE] Checking ZIP file: {zip_path}")
         try:
             with zipfile.ZipFile(zip_path) as zf:
                 # Test ZIP file integrity
                 test_result = zf.testzip()
                 if test_result is not None:
+                    print(f"[VALIDATE] ❌ Corrupt ZIP detected: {zip_path}")
                     error_msg = f"Corrupt ZIP file {zip_path}: First bad file is {test_result}"
                     if delete_if_invalid and zip_path.exists():
                         zip_path.unlink()
@@ -67,6 +78,7 @@ class GutenbergHarvester:
                 # Verify content
                 txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
                 if not txt_files:
+                    print(f"[VALIDATE] ❌ No text files found in: {zip_path}")
                     error_msg = f"No text files found in {zip_path}"
                     if delete_if_invalid and zip_path.exists():
                         zip_path.unlink()
@@ -75,19 +87,23 @@ class GutenbergHarvester:
                 # Check file sizes
                 for txt_file in txt_files:
                     if zf.getinfo(txt_file).file_size == 0:
+                        print(f"[VALIDATE] ❌ Empty text file found: {txt_file}")
                         error_msg = f"Empty text file found in {zip_path}: {txt_file}"
                         if delete_if_invalid and zip_path.exists():
                             zip_path.unlink()
                         return False, error_msg
                 
+                print(f"[VALIDATE] ✅ ZIP file valid: {zip_path}")
                 return True, None
                 
         except zipfile.BadZipFile:
+            print(f"[VALIDATE] ❌ Invalid ZIP file: {zip_path}")
             error_msg = f"Invalid ZIP file: {zip_path}"
             if delete_if_invalid and zip_path.exists():
                 zip_path.unlink()
             return False, error_msg
         except Exception as e:
+            print(f"[VALIDATE] ❌ Error validating ZIP: {zip_path}, Error: {e}")
             error_msg = f"Error validating ZIP file {zip_path}: {e}"
             if delete_if_invalid and zip_path.exists():
                 zip_path.unlink()
@@ -98,22 +114,35 @@ class GutenbergHarvester:
         book_id = url.split('/')[-2]
         urls_to_try = [url] + self.generate_mirror_urls(book_id)
         
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+        }
+        
         for attempt_url in urls_to_try:
+            print(f"[DOWNLOAD] Attempting download from: {attempt_url}")
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(attempt_url, timeout=30) as response:
+                async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
+                    async with session.get(attempt_url, headers=headers, timeout=30) as response:
                         if response.status == 404:
+                            print(f"[DOWNLOAD] 404 Not found: {attempt_url}")
                             continue
                         
                         if response.status != 200:
+                            print(f"[DOWNLOAD] Status {response.status}: {attempt_url}")
                             continue
                         
                         content = await response.read()
                         if len(content) < 100:  # Basic size check
+                            print(f"[DOWNLOAD] Content too small: {attempt_url}")
                             continue
                             
                         async with aiofiles.open(zip_path, 'wb') as f:
                             await f.write(content)
+                        
+                        print(f"[DOWNLOAD] ✅ Successfully downloaded: {zip_path}")
                         
                         # Validate the downloaded file
                         is_valid, error_msg = await self.validate_zip_file(zip_path)
@@ -125,16 +154,20 @@ class GutenbergHarvester:
                             continue
                             
             except asyncio.TimeoutError:
+                print(f"[DOWNLOAD] Timeout: {attempt_url}")
                 continue
             except Exception as e:
+                print(f"[DOWNLOAD] Error: {attempt_url}, {str(e)}")
                 continue
         
+        print(f"[DOWNLOAD] ❌ All download attempts failed for book {book_id}")
         return False, f"All download attempts failed for book {book_id}"
 
     async def download_book(self, url: str) -> bool:
         """Download a single book ZIP file with mirror fallback and validation."""
         book_id = url.split('/')[-2]
         if book_id in self.processed_ids or book_id in self.failed_downloads:
+            print(f"[BOOK] Skipping already processed/failed book: {book_id}")
             return False
 
         zip_path = self.download_dir / f"{book_id}.zip"
@@ -143,23 +176,28 @@ class GutenbergHarvester:
         
         async with self.semaphore:
             while retry_count < max_retries:
+                print(f"[BOOK] Download attempt {retry_count + 1}/{max_retries} for book {book_id}")
                 success, error_msg = await self.download_with_mirrors(url, zip_path)
                 
                 if success:
+                    print(f"[BOOK] ✅ Successfully downloaded book: {book_id}")
                     return True
                 
                 retry_count += 1
                 if retry_count < max_retries:
+                    print(f"[BOOK] Retrying download for book: {book_id}")
                     await asyncio.sleep(1)  # Wait before retrying
             
             if error_msg:
                 logging.error(error_msg)
             self.failed_downloads.add(book_id)
+            print(f"[BOOK] ❌ Failed to download book: {book_id}")
             return False
 
     async def process_book(self, zip_path: Path) -> None:
         """Extract and process a book from its ZIP file with enhanced validation."""
         book_id = zip_path.stem
+        print(f"\n[PROCESS] Processing book: {book_id}")
         
         try:
             # Validate ZIP file before processing
@@ -170,48 +208,53 @@ class GutenbergHarvester:
                 self.failed_downloads.add(book_id)
                 return
 
+            print(f"[PROCESS] Extracting files from: {zip_path}")
             with zipfile.ZipFile(zip_path) as zf:
                 txt_files = [f for f in zf.namelist() if f.endswith('.txt')]
                 zf.extractall(self.extracted_dir)
             
             processed_any = False
             for txt_file in txt_files:
+                print(f"[PROCESS] Processing text file: {txt_file}")
                 extracted_path = self.extracted_dir / txt_file
                 try:
                     async with aiofiles.open(extracted_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = await f.read()
                     
                     if not content.strip():
-                        logging.warning(f"Empty content in {txt_file}")
+                        print(f"[PROCESS] ⚠️ Empty content in {txt_file}")
                         continue
                     
                     processed_content = self.process_text(content)
                     if not processed_content.strip():
-                        logging.warning(f"Empty processed content for {txt_file}")
+                        print(f"[PROCESS] ⚠️ Empty processed content for {txt_file}")
                         continue
                     
                     output_path = self.processed_dir / f"{book_id}.txt"
                     async with aiofiles.open(output_path, 'w', encoding='utf-8') as f:
                         await f.write(processed_content)
                     
+                    print(f"[PROCESS] ✅ Successfully processed: {txt_file}")
                     processed_any = True
                     
                 except Exception as e:
-                    logging.error(f"Error processing text file {txt_file}: {e}")
+                    print(f"[PROCESS] ❌ Error processing text file {txt_file}: {e}")
                 finally:
                     if extracted_path.exists():
                         extracted_path.unlink()
             
             if processed_any:
                 self.processed_ids.add(book_id)
+                print(f"[PROCESS] ✅ Successfully processed book: {book_id}")
             else:
                 self.failed_downloads.add(book_id)
+                print(f"[PROCESS] ❌ Failed to process book: {book_id}")
             
             if zip_path.exists():
                 zip_path.unlink()
             
         except Exception as e:
-            logging.error(f"Error processing {zip_path}: {e}")
+            print(f"[PROCESS] ❌ Error processing {zip_path}: {e}")
             self.failed_downloads.add(book_id)
             if zip_path.exists():
                 zip_path.unlink()
@@ -265,16 +308,17 @@ class GutenbergHarvester:
             # Clean up extra whitespace
             return re.sub(r'\n{3,}', '\n\n', text.strip())
         except Exception as e:
-            logging.error(f"Error processing text content: {e}")
+            print(f"[TEXT] ❌ Error processing text content: {e}")
             return text
 
     async def get_page_content(self, url: str, params: dict = None) -> Tuple[List[str], Optional[str]]:
         """Fetch book download links and next page link from the harvest page."""
-        async with aiohttp.ClientSession() as session:
+        print(f"\n[PAGE] Fetching content from: {url}")
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as session:
             try:
                 async with session.get(url, params=params, timeout=30) as response:
                     if response.status != 200:
-                        logging.error(f"Failed to fetch page: {url} (Status: {response.status})")
+                        print(f"[PAGE] ❌ Failed to fetch page: {url} (Status: {response.status})")
                         return [], None
                     
                     content = await response.text()
@@ -282,6 +326,7 @@ class GutenbergHarvester:
                     
                     links = [a['href'] for a in soup.find_all('a', href=True) 
                             if a['href'].endswith('.zip')]
+                    print(f"[PAGE] Found {len(links)} book links")
                     
                     next_link = soup.find('a', string='Next Page')
                     next_url = None
@@ -291,56 +336,67 @@ class GutenbergHarvester:
                         query_params = parse_qs(parsed_url.query)
                         if 'filetypes[]' not in query_params:
                             next_url = f"{next_url}&filetypes[]=txt&langs[]=de"
+                        print(f"[PAGE] Found next page: {next_url}")
+                    else:
+                        print("[PAGE] No next page found")
                     
                     return links, next_url
             except asyncio.TimeoutError:
-                logging.error(f"Timeout while fetching page: {url}")
+                print(f"[PAGE] ❌ Timeout while fetching page: {url}")
                 return [], None
             except Exception as e:
-                logging.error(f"Error fetching page {url}: {e}")
+                print(f"[PAGE] ❌ Error fetching page {url}: {e}")
                 return [], None
 
     async def harvest_books(self):
         """Main harvesting method with enhanced error handling and reporting."""
+        print("\n[HARVEST] Starting book harvesting process...")
         current_url = self.base_url
         params = {'filetypes[]': 'txt', 'langs[]': 'de'}
         
         try:
             while True:
-                logging.info(f"Fetching links from: {current_url}")
+                print(f"\n[HARVEST] Processing page: {current_url}")
                 links, next_url = await self.get_page_content(current_url, params)
                 
                 if not links:
-                    logging.info("No more books found.")
+                    print("[HARVEST] No more books found.")
                     break
                 
+                print(f"[HARVEST] Downloading {len(links)} books...")
                 download_tasks = [self.download_book(link) for link in links]
                 download_results = await asyncio.gather(*download_tasks, return_exceptions=True)
                 
                 zip_files = list(self.download_dir.glob('*.zip'))
+                print(f"[HARVEST] Processing {len(zip_files)} downloaded books...")
                 process_tasks = [self.process_book(zip_path) for zip_path in zip_files]
                 await asyncio.gather(*process_tasks, return_exceptions=True)
                 
                 if not next_url:
-                    logging.info("No next page link found.")
+                    print("[HARVEST] No next page link found.")
                     break
                 
                 current_url = next_url
                 params = None
+                print("[HARVEST] Waiting before fetching next page...")
                 await asyncio.sleep(1)
             
             # Final report
-            logging.info(f"Harvest complete. Processed {len(self.processed_ids)} books successfully.")
+            print("\n[HARVEST] 📊 Final Report:")
+            print(f"✅ Successfully processed: {len(self.processed_ids)} books")
             if self.failed_downloads:
-                logging.warning(f"Failed to process {len(self.failed_downloads)} books: {sorted(self.failed_downloads)}")
+                print(f"❌ Failed to process: {len(self.failed_downloads)} books")
+                print(f"Failed book IDs: {sorted(self.failed_downloads)}")
                 
         except Exception as e:
-            logging.error(f"Fatal error in harvest_books: {e}")
+            print(f"[HARVEST] ❌ Fatal error in harvest_books: {e}")
             raise
 
 async def main():
+    print("\n🚀 Starting Gutenberg Book Harvester")
     harvester = GutenbergHarvester()
     await harvester.harvest_books()
+    print("\n✨ Harvesting process complete")
 
 if __name__ == "__main__":
     asyncio.run(main())
