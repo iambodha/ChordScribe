@@ -4,6 +4,7 @@ import asyncio
 import aiohttp
 import aiofiles
 import ssl
+import argparse
 
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
@@ -392,11 +393,34 @@ class GutenbergHarvester:
             print(f"[HARVEST] ❌ Fatal error in harvest_books: {e}")
             raise
 
+    def count_downloaded_books(self) -> int:
+        """Count the number of books in the output directory."""
+        try:
+            book_count = len(list(self.processed_dir.glob('*.txt')))
+            print(f"\n[COUNT] 📚 Found {book_count} books in {self.processed_dir}")
+            return book_count
+        except Exception as e:
+            print(f"[COUNT] ❌ Error counting books: {e}")
+            return 0
+
 async def main():
     print("\n🚀 Starting Gutenberg Book Harvester")
+    
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Gutenberg Book Harvester')
+    parser.add_argument('--count-only', action='store_true', 
+                       help='Only count existing books without downloading new ones')
+    args = parser.parse_args()
+    
     harvester = GutenbergHarvester()
-    await harvester.harvest_books()
-    print("\n✨ Harvesting process complete")
+    
+    if args.count_only:
+        harvester.count_downloaded_books()
+    else:
+        await harvester.harvest_books()
+        print(f"\nFinal book count: {harvester.count_downloaded_books()}")
+    
+    print("\n✨ Process complete")
 
 if __name__ == "__main__":
     asyncio.run(main())
