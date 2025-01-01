@@ -1,0 +1,20 @@
+{
+  "name": "keyboard-layout",
+  "version": "1.0.0",
+  "description": "Optimizing Keyboard Layout Using Genetic Algorithms",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node src/compare.js"
+  },
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.5.5",
+    "chai": "^3.5.0",
+    "chalk": "^1.1.3",
+    "co": "^4.6.0",
+    "co-mocha": "^1.1.3",
+    "mocha": "^3.1.2"
+  }
+}
