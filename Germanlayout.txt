@@ -1,0 +1,9 @@
+QWERTZ:
+  ` 1 2 3 4 5 6 7 8 9 0 ß ´
+   ~ ! @ # $ % ^ & * ( ) _ `
+     q w e r t z u i o p ü + 
+     Q W E R T Z U I O P Ü *
+     a s d f g h j k l ö ä \\n
+     A S D F G H J K L Ö Ä \\n
+      y x c v b n m , . -
+      Y X C V B N M ; : _
