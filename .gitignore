@@ -169,3 +169,5 @@ approach2
 text
 *.txt
 *.json
+*.csv
+*.png

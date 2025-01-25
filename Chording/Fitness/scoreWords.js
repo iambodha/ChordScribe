@@ -1,4 +1,4 @@
-const { Halmak } = require('./presets');
+const { QWERTZ } = require('./presets');
 const { analyzeWord } = require('./word-analysis');
 const normalization = require('./normalization');
 const fs = require('fs');
@@ -48,7 +48,7 @@ function calculateScore(stats, frequency) {
 // Add scores to the tokens
 const scoredTokens = {};
 for (const word in tokens) {
-    const stats = analyzeWord(Halmak, word);
+    const stats = analyzeWord(QWERTZ, word);
     const frequency = tokens[word];
     const score = calculateScore(stats, frequency);
 

@@ -10,10 +10,10 @@ exports.SAME_HAND_PENALTY   = 1; // multiplier
 
 // just a mapping for easier conversions
 const COORDINATES = parseMapping(`
- ~ 1 2 3 4 5 6 7 8 9 0 - =
-   q w e r t y u i o p [ ] \\
-   a s d f g h j k l ; ' \\n
-    z x c v b n m , . /
+ ~ 1 2 3 4 5 6 7 8 9 0 ß '
+   q w e r t z u i o p ü + 
+   a s d f g h j k l ö ä #
+   y x c v b n m , . - 
  l-shift    space    r-shift
 `);
 
