@@ -1,5 +1,7 @@
 # ChordScribe
 
+> **Canonical keyboard project.** ChordScribe is the main home for this keyboard-efficiency work. [Key-AI](https://github.com/iambodha/Key-AI) and [KeyScribe](https://github.com/iambodha/KeyScribe) are historical predecessors retained for reference; use this repository for current development and new issues.
+
 **Keyboard layout optimization and practical typing shortcuts.**
 
 ChordScribe explores two ways to make everyday typing more efficient: evolving
