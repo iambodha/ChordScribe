@@ -1,5 +1,7 @@
 # 🎹 **ChordScribe Project**
 
+> **Canonical keyboard project.** ChordScribe is the main home for this keyboard-efficiency work. [Key-AI](https://github.com/iambodha/Key-AI) and [KeyScribe](https://github.com/iambodha/KeyScribe) are historical predecessors retained for reference; use this repository for current development and new issues.
+
 ## 🌟 **Overview**
 ChordScribe explores the optimization of keyboard efficiency using **genetic algorithms** and **chord-based typing systems**. Traditional keyboard layouts like QWERTY and QWERTZ were designed to address mechanical limitations rather than ergonomics or typing efficiency. This project creates personalized and efficient keyboard layouts and chord systems tailored to specific use cases, such as medical professionals or law enforcement, enabling significant improvements in typing speed and comfort.
 
