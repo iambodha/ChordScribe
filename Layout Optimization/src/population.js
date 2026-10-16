@@ -19,7 +19,7 @@ module.exports = class Population {
   constructor(genomes, number) {
     this.number  = number || 1;
     this.genomes = genomes;
-    this.scores  = genomes.map(() => {total: 0});
+    this.scores  = genomes.map(() => ({total: 0}));
   }
 
   grade(fitness) {

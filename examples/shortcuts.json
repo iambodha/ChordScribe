@@ -1,0 +1,5 @@
+[
+  { "pattern": "ty", "replacement": "thank you" },
+  { "pattern": "pls", "replacement": "please" },
+  { "pattern": "brb", "replacement": "be right back" }
+]

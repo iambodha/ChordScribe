@@ -13,7 +13,10 @@ const mutate_level = 2;
 const seed_layouts = [QWERTY, Workman];
 const max_no_chage = 80;
 
-co(boot).catch(e => console.log(e.stack));
+co(boot).catch(e => {
+  console.error(e.stack);
+  process.exitCode = 1;
+}).finally(() => { cluster.close(); ui.destroy(); });
 
 function *boot() {
   for (const promise of cluster.schedule(seed_layouts)) {

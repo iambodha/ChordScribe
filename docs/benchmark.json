@@ -1,0 +1,43 @@
+{
+  "model": "ChordScribe legacy effort model; not human WPM or an ergonomic validation",
+  "corpus": {
+    "path": "examples/corpus.txt",
+    "sha256": "873b14bad0c00afdd5408fdfd16ea15c3df44c25108a1f93ea3af2c73fb9de69",
+    "characters": 1522
+  },
+  "effortLimit": 100000,
+  "results": [
+    {
+      "layout": "QWERTY",
+      "charactersVisited": 14035,
+      "effort": 100060,
+      "distance": 103512,
+      "effortPerCharacter": 7.129319558247239,
+      "distancePerCharacter": 7.375276095475597
+    },
+    {
+      "layout": "Dvorak",
+      "charactersVisited": 20662,
+      "effort": 100097,
+      "distance": 94761,
+      "effortPerCharacter": 4.844497144516504,
+      "distancePerCharacter": 4.586245281192527
+    },
+    {
+      "layout": "Colemak",
+      "charactersVisited": 25363,
+      "effort": 100005,
+      "distance": 104378,
+      "effortPerCharacter": 3.9429483893861135,
+      "distancePerCharacter": 4.115364901628356
+    },
+    {
+      "layout": "Workman",
+      "charactersVisited": 26768,
+      "effort": 100028,
+      "distance": 116603,
+      "effortPerCharacter": 3.7368499701135685,
+      "distancePerCharacter": 4.356059473998805
+    }
+  ]
+}

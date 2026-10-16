@@ -1,80 +1,84 @@
-const cluster = require('cluster');
-const { length: numCPUs } = require('os').cpus();
-const { fork } = require('child_process');
+const { fork } = require('node:child_process');
+const { availableParallelism } = require('node:os');
+const { randomUUID } = require('node:crypto');
 const Runner = require('./runner');
 const Layout = require('./layout');
 
-// the async processing queue
-const queue = {
-  workers: [],
-  awaiting: {}, // promises
-  available: [], // idle workers
-
-  addWorker(worker) {
-    this.workers.push(worker);
-    this.available.push(worker);
-    worker.on('message', msg => msg.cmd === 'result' && this.resultRecieved(msg));
-  },
-
-  push(layout) {
-    const uuid = Date.now() / 10000 + Math.random();
-
-    return new Promise(resolve => {
-      this.awaiting[uuid] = {
-        callback: resolve,
-        payload: Object.assign({ cmd: 'run', uuid }, layout)
-      };
-      this.scheduleNext();
-    });
-  },
-
-  scheduleNext() {
-    const [uuid] = Object.keys(this.awaiting).filter(uuid => !this.awaiting[uuid].worker);
-
-    if (uuid && this.available.length) {
-      const worker = this.available.shift();
-      this.awaiting[uuid].worker = worker;
-      worker.send(this.awaiting[uuid].payload);
-    }
-  },
-
-  resultRecieved({ uuid, name, config, result }) {
-    const { worker, callback } = this.awaiting[uuid];
-    const layout = new Layout(name, config);
-
-    this.available.push(worker);
-    this.scheduleNext();
-
-    callback({ layout, result });
-  }
-};
-
-if (!process.env.CHILD_WORKER) {
-  while (queue.workers.length < numCPUs) {
-    queue.addWorker(
-      fork(__dirname + '/cluster.js', { env: { CHILD_WORKER: 'yup' } })
-    );
-  }
-} else {
-  let runner;
-  process.on('message', msg => {
-    if (msg.cmd === 'reset') {
-      runner = new Runner(msg.text, msg.options);
-    } else if (msg.cmd === 'run') {
-      const result = runner.typeWith(new Layout(msg.name, msg.config));
-      process.send(Object.assign({}, msg, { cmd: 'result', result }));
+// Each task carries its own corpus/options. Separate instances cannot reset one
+// another's workers, and importing this module never starts child processes.
+if (process.env.CHORDSCRIBE_WORKER === '1') {
+  process.on('message', message => {
+    try {
+      const result = new Runner(message.text, message.options)
+        .typeWith(new Layout(message.name, message.config));
+      process.send({ id: message.id, result });
+    } catch (error) {
+      process.send({ id: message.id, error: error.message });
     }
   });
 }
 
 module.exports = class Cluster {
-  constructor(text, options={}) {
-    queue.workers.forEach(worker => {
-      worker.send({ cmd: 'reset', text, options });
-    });
+  constructor(text, options = {}) {
+    new Runner(text, options); // Fail invalid input before spawning workers.
+    this.text = text;
+    this.options = options;
+    this.workers = new Map();
+    this.tasks = [];
+    this.closed = false;
   }
 
   schedule(layouts) {
-    return layouts.map(layout => queue.push(layout));
+    if (this.closed) throw new Error('This worker pool is closed.');
+    const promises = layouts.map(layout => new Promise((resolve, reject) => {
+      this.tasks.push({ id: randomUUID(), name: layout.name, config: layout.config, resolve, reject });
+    }));
+    const count = Math.min(4, availableParallelism(), this.tasks.length);
+    while (this.workers.size < count) this.addWorker();
+    this.dispatch();
+    return promises;
+  }
+
+  addWorker() {
+    const worker = fork(__filename, [], {
+      env: { ...process.env, CHORDSCRIBE_WORKER: '1' },
+      stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+    });
+    this.workers.set(worker, null);
+    worker.on('message', message => {
+      const task = this.workers.get(worker);
+      if (!task || task.id !== message.id) return;
+      this.workers.set(worker, null);
+      if (message.error) task.reject(new Error(message.error));
+      else task.resolve({ layout: new Layout(task.name, task.config), result: message.result });
+      this.dispatch();
+    });
+    worker.on('error', error => this.close(error));
+    worker.on('exit', () => {
+      if (!this.closed) this.close(new Error('A layout worker exited before the pool was closed.'));
+    });
+  }
+
+  dispatch() {
+    for (const [worker, current] of this.workers) {
+      if (current || !this.tasks.length) continue;
+      const task = this.tasks.shift();
+      this.workers.set(worker, task);
+      worker.send({
+        id: task.id, name: task.name, config: task.config,
+        text: this.text, options: this.options,
+      }, error => { if (error) this.close(error); });
+    }
+  }
+
+  close(error = new Error('Worker pool closed before the task finished.')) {
+    if (this.closed) return;
+    this.closed = true;
+    for (const task of this.tasks.splice(0)) task.reject(error);
+    for (const [worker, task] of this.workers) {
+      if (task) task.reject(error);
+      worker.kill();
+    }
+    this.workers.clear();
   }
 };

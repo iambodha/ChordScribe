@@ -1,280 +1,174 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import {
-  Box,
-  Typography,
-  Button,
-  TextField,
-  List,
-  ListItem,
-  IconButton,
-  Paper,
-  Container,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  SelectChangeEvent,
+  Alert, Box, Button, Container, Dialog, DialogActions, DialogContent, DialogContentText,
+  DialogTitle, FormControl, FormControlLabel, IconButton, InputLabel, LinearProgress,
+  MenuItem, Paper, Select, Snackbar, Stack, Switch, TextField, Typography,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import { useSettings } from "../shared/useSettings.ts";
+import { validateRules, type ShorthandRule } from "../shared/settings.ts";
 
-interface Rule {
-  pattern: string;
-  replacement: string;
-}
+export default function Options() {
+  const { settings, error, busy, save, reload } = useSettings();
+  const [pattern, setPattern] = useState("");
+  const [replacement, setReplacement] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editContext, setEditContext] = useState<{ profileId: string; rules: ShorthandRule[] } | null>(null);
+  const [validation, setValidation] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState("");
+  const profile = settings?.profiles.find(p => p.id === settings.activeProfileId);
 
-interface Profile {
-  id: string;
-  name: string;
-  rules: Rule[];
-}
-
-const Options: React.FC = () => {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string>("default");
-  const [newPattern, setNewPattern] = useState("");
-  const [newReplacement, setNewReplacement] = useState("");
-  const [isCreateProfileOpen, setIsCreateProfileOpen] = useState(false);
-  const [newProfileName, setNewProfileName] = useState("");
-
-  useEffect(() => {
-    loadProfiles();
-  }, []);
-
-  const loadProfiles = async () => {
-    const result = await chrome.storage.sync.get([
-      "profiles",
-      "activeProfileId",
-    ]);
-    if (result.profiles) {
-      setProfiles(result.profiles);
-      setSelectedProfileId(result.activeProfileId || "default");
+  function resetForm() { setPattern(""); setReplacement(""); setEditing(null); setEditContext(null); setValidation(""); }
+  async function updateRules(rules: ShorthandRule[], message: string) {
+    if (!profile) return false;
+    const ok = await save({ type: "UPDATE_PROFILE_RULES", profileId: profile.id, rules, expectedRules: profile.rules });
+    if (ok) setNotice(message);
+    return ok;
+  }
+  async function submitShortcut(event: React.FormEvent) {
+    event.preventDefault();
+    if (!profile) return;
+    if (editing !== null && (editContext?.profileId !== profile.id ||
+        JSON.stringify(editContext.rules) !== JSON.stringify(profile.rules))) {
+      setValidation("This profile changed in another window. Cancel editing and choose the shortcut again.");
+      return;
     }
-  };
+    const rule = { pattern: pattern.trim(), replacement };
+    const rules = editing === null ? [...profile.rules, rule] : profile.rules.map((r, i) => i === editing ? rule : r);
+    try { validateRules(rules); setValidation(""); }
+    catch (cause) { setValidation((cause as Error).message); return; }
+    if (await updateRules(rules, editing === null ? "Shortcut added." : "Shortcut updated.")) resetForm();
+  }
+  if (!settings) return <Container maxWidth="md" sx={{ py: 6 }}>
+    <Typography variant="h4" component="h1">ChordScribe</Typography>
+    {error ? <Alert severity="error" action={<Button onClick={() => void reload()}>Retry</Button>}>{error}</Alert>
+      : <Box sx={{ mt: 3 }}><LinearProgress aria-label="Loading settings" /><Typography sx={{ mt: 2 }}>Loading your profiles…</Typography></Box>}
+  </Container>;
 
-  const handleProfileChange = (event: SelectChangeEvent<string>) => {
-    const profileId = event.target.value;
-    setSelectedProfileId(profileId);
-    chrome.runtime.sendMessage(
-      { type: "SET_ACTIVE_PROFILE", profileId },
-      () => {}
-    );
-  };
-
-  const handleCreateProfile = () => {
-    if (newProfileName.trim()) {
-      chrome.runtime.sendMessage(
-        { type: "CREATE_PROFILE", profileName: newProfileName.trim() },
-        () => {
-          loadProfiles();
-          setIsCreateProfileOpen(false);
-          setNewProfileName("");
-        }
-      );
-    }
-  };
-
-  const handleDeleteProfile = (profileId: string) => {
-    if (profileId === "default") return; // Prevent deleting default profile
-    chrome.runtime.sendMessage({ type: "DELETE_PROFILE", profileId }, () => {
-      loadProfiles();
-    });
-  };
-
-  const getCurrentProfile = () => {
-    return profiles.find((p) => p.id === selectedProfileId);
-  };
-
-  const handleAddRule = () => {
-    if (newPattern && newReplacement) {
-      const currentProfile = getCurrentProfile();
-      if (currentProfile) {
-        const updatedProfile = {
-          ...currentProfile,
-          rules: [
-            ...currentProfile.rules,
-            { pattern: newPattern, replacement: newReplacement },
-          ],
-        };
-
-        const updatedProfiles = profiles.map((p) =>
-          p.id === selectedProfileId ? updatedProfile : p
-        );
-
-        chrome.runtime.sendMessage(
-          {
-            type: "UPDATE_PROFILE_RULES",
-            profileId: selectedProfileId,
-            rules: updatedProfile.rules,
-          },
-          () => {
-            setProfiles(updatedProfiles);
-            setNewPattern("");
-            setNewReplacement("");
-          }
-        );
-      }
-    }
-  };
-
-  const handleDeleteRule = (index: number) => {
-    const currentProfile = getCurrentProfile();
-    if (currentProfile) {
-      const updatedRules = currentProfile.rules.filter((_, i) => i !== index);
-      const updatedProfile = { ...currentProfile, rules: updatedRules };
-      const updatedProfiles = profiles.map((p) =>
-        p.id === selectedProfileId ? updatedProfile : p
-      );
-
-      chrome.runtime.sendMessage(
-        {
-          type: "UPDATE_PROFILE_RULES",
-          profileId: selectedProfileId,
-          rules: updatedRules,
-        },
-        () => {
-          setProfiles(updatedProfiles);
-        }
-      );
-    }
-  };
-
-  return (
-    <Container maxWidth="md">
-      <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Efficient Typing System Settings
+  return <Container maxWidth="md" sx={{ py: { xs: 3, sm: 6 } }}>
+    <Stack spacing={4}>
+      <Box>
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 650 }}>ChordScribe</Typography>
+        <Typography color="text.secondary" sx={{ mt: 1, maxWidth: "65ch" }}>
+          Your words, with fewer keystrokes. Set up shortcuts for the phrases you use often.
         </Typography>
-
-        <Paper sx={{ p: 2, mb: 4 }}>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+      </Box>
+      {error && <Alert severity="error" action={<Button onClick={() => void reload()}>Reload</Button>}>{error}</Alert>}
+      <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
+        <Stack spacing={3}>
+          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }}>
+            <Box>
+              <Typography variant="h6" component="h2">Typing shortcuts</Typography>
+              <Typography color="text.secondary" variant="body2">
+                {settings.isEnabled ? "Enabled in supported text fields." : "Paused. Your shortcuts are saved."}
+              </Typography>
+            </Box>
+            <FormControlLabel label={settings.isEnabled ? "Enabled" : "Paused"} control={
+              <Switch checked={settings.isEnabled} disabled={busy}
+                onChange={(_, isEnabled) => void save({ type: "SET_ENABLED", isEnabled })} />
+            } />
+          </Stack>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
             <FormControl fullWidth size="small">
-              <InputLabel>Active Profile</InputLabel>
-              <Select
-                value={selectedProfileId}
-                label="Active Profile"
-                onChange={handleProfileChange}
-              >
-                {profiles.map((profile) => (
-                  <MenuItem key={profile.id} value={profile.id}>
-                    {profile.name}
-                  </MenuItem>
-                ))}
+              <InputLabel id="profile-label">Active profile</InputLabel>
+              <Select labelId="profile-label" label="Active profile" value={settings.activeProfileId} disabled={busy}
+                onChange={async event => { if (await save({ type: "SET_ACTIVE_PROFILE", profileId: event.target.value })) resetForm(); }}>
+                {settings.profiles.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
               </Select>
             </FormControl>
-            <Button
-              startIcon={<AddIcon />}
-              onClick={() => setIsCreateProfileOpen(true)}
-              sx={{ ml: 2 }}
-            >
-              New Profile
+            <Button startIcon={<AddIcon />} sx={{ flexShrink: 0 }} onClick={() => setCreating(!creating)} disabled={busy}>
+              {creating ? "Cancel new profile" : "New profile"}
             </Button>
-          </Box>
+          </Stack>
+          {creating && <Box component="form" onSubmit={async event => {
+            event.preventDefault();
+            if (await save({ type: "CREATE_PROFILE", profileName })) {
+              setProfileName(""); setCreating(false); resetForm(); setNotice("Profile created.");
+            }
+          }}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField label="Profile name" size="small" autoFocus fullWidth value={profileName}
+                onChange={event => setProfileName(event.target.value)} inputProps={{ maxLength: 80 }} disabled={busy} />
+              <Button type="submit" variant="contained" disabled={busy || !profileName.trim()} sx={{ flexShrink: 0 }}>Create profile</Button>
+            </Stack>
+          </Box>}
+        </Stack>
+      </Paper>
 
-          <Typography variant="h6" gutterBottom>
-            Add New Shortcut
-          </Typography>
-          <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-            <TextField
-              label="Type this"
-              value={newPattern}
-              onChange={(e) => setNewPattern(e.target.value)}
-              size="small"
-              helperText="The text you want to type"
-            />
-            <TextField
-              label="Replace with"
-              value={newReplacement}
-              onChange={(e) => setNewReplacement(e.target.value)}
-              size="small"
-              helperText="What it should become"
-            />
-            <Button
-              variant="contained"
-              onClick={handleAddRule}
-              disabled={!newPattern || !newReplacement}
-            >
-              Add Shortcut
-            </Button>
+      <Box component="section" aria-labelledby="shortcuts-title">
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography id="shortcuts-title" variant="h6" component="h2" sx={{ overflowWrap: "anywhere" }}>{profile?.name} shortcuts</Typography>
+            <Typography variant="body2" color="text.secondary">{profile?.rules.length || 0} saved · Saved when you add or update a shortcut</Typography>
           </Box>
-        </Paper>
+          {profile?.id !== "default" && <Button color="error" disabled={busy} onClick={() => setDeleting(true)} sx={{ flexShrink: 0 }}>Delete profile</Button>}
+        </Stack>
+        {!profile?.rules.length ? <Box sx={{ py: 4, borderTop: 1, borderBottom: 1, borderColor: "divider" }}>
+          <Typography>No shortcuts in this profile yet.</Typography>
+          <Typography color="text.secondary" variant="body2" sx={{ mt: 0.5 }}>Add one below. Try “brb” → “be right back”.</Typography>
+        </Box> : <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0 }}>
+          {profile.rules.map((rule, index) => <Box component="li" key={rule.pattern + index}
+            sx={{ display: "flex", alignItems: "center", gap: 1, py: 1.5, borderTop: 1, borderColor: "divider" }}>
+            <Box sx={{ flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "minmax(80px, 1fr) 3fr" }, gap: 1 }}>
+              <Typography component="code" sx={{ fontFamily: "monospace", overflowWrap: "anywhere", color: "primary.dark" }}>{rule.pattern}</Typography>
+              <Typography sx={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>{rule.replacement}</Typography>
+            </Box>
+            <IconButton aria-label={"Edit shortcut " + rule.pattern} disabled={busy} onClick={() => {
+              setPattern(rule.pattern); setReplacement(rule.replacement); setEditing(index); setValidation("");
+              setEditContext({ profileId: profile.id, rules: structuredClone(profile.rules) });
+              document.getElementById("shortcut-pattern")?.focus();
+            }}><EditOutlinedIcon fontSize="small" /></IconButton>
+            <IconButton aria-label={"Delete shortcut " + rule.pattern} disabled={busy}
+              onClick={async () => { if (await updateRules(profile.rules.filter((_, i) => i !== index), "Shortcut deleted.")) resetForm(); }}>
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </Box>)}
+        </Box>}
 
-        <Paper sx={{ p: 2 }}>
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              mb: 2,
-            }}
-          >
-            <Typography variant="h6">
-              Current Shortcuts for {getCurrentProfile()?.name}
-            </Typography>
-            {selectedProfileId !== "default" && (
-              <Button
-                startIcon={<DeleteIcon />}
-                color="error"
-                onClick={() => handleDeleteProfile(selectedProfileId)}
-              >
-                Delete Profile
-              </Button>
-            )}
-          </Box>
-          <List>
-            {getCurrentProfile()?.rules.map((rule, index) => (
-              <ListItem
-                key={index}
-                secondaryAction={
-                  <IconButton
-                    edge="end"
-                    aria-label="delete"
-                    onClick={() => handleDeleteRule(index)}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                }
-              >
-                <Typography>
-                  {rule.pattern} → {rule.replacement}
-                </Typography>
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
+        <Box component="form" onSubmit={submitShortcut} sx={{ mt: 4 }}>
+          <Typography component="h3" variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>{editing === null ? "Add a shortcut" : "Edit shortcut"}</Typography>
+          {validation && <Alert severity="error" sx={{ mb: 2 }}>{validation}</Alert>}
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
+            <TextField id="shortcut-pattern" label="Type this" size="small" value={pattern}
+              onChange={event => setPattern(event.target.value)} helperText="One shortcut, no spaces" disabled={busy}
+              sx={{ width: { xs: "100%", sm: 190 }, flexShrink: 0 }} inputProps={{ maxLength: 64 }} />
+            <TextField label="Replace with" size="small" multiline minRows={1} maxRows={6} value={replacement}
+              onChange={event => setReplacement(event.target.value)} helperText="The full word or phrase" disabled={busy}
+              fullWidth inputProps={{ maxLength: 2000 }} />
+            <Button type="submit" variant="contained" disabled={busy || !pattern.trim() || !replacement.trim()}
+              sx={{ minHeight: 40, flexShrink: 0 }}>{busy ? "Saving…" : editing === null ? "Add shortcut" : "Save changes"}</Button>
+          </Stack>
+          {editing !== null && <Button sx={{ mt: 1 }} onClick={resetForm}>Cancel editing</Button>}
+        </Box>
       </Box>
-
-      <Dialog
-        open={isCreateProfileOpen}
-        onClose={() => setIsCreateProfileOpen(false)}
-      >
-        <DialogTitle>Create New Profile</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Profile Name"
-            fullWidth
-            value={newProfileName}
-            onChange={(e) => setNewProfileName(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setIsCreateProfileOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleCreateProfile}
-            disabled={!newProfileName.trim()}
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
-  );
-};
-
-export default Options;
+      <Box component="section" sx={{ borderTop: 1, borderColor: "divider", pt: 3 }}>
+        <Typography component="h2" variant="subtitle1" sx={{ fontWeight: 600 }}>How to use your shortcuts</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: "70ch" }}>
+          Type a shortcut, then a space or punctuation. Press Backspace immediately to undo the expansion.
+          Shortcuts are case-sensitive and work in ordinary text inputs and text areas. Rich-text editors such as Google Docs are not supported.
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: "70ch" }}>
+          Your profiles and shortcuts sync through Chrome. ChordScribe does not save the words you type or send page text to a server.
+        </Typography>
+      </Box>
+    </Stack>
+    <Dialog open={deleting} onClose={() => { if (!busy) setDeleting(false); }}>
+      <DialogTitle>Delete {profile?.name}?</DialogTitle>
+      <DialogContent><DialogContentText>This removes the profile and its {profile?.rules.length || 0} shortcuts. This cannot be undone.</DialogContentText></DialogContent>
+      <DialogActions>
+        <Button onClick={() => setDeleting(false)} disabled={busy}>Keep profile</Button>
+        <Button color="error" disabled={busy} onClick={async () => {
+          if (profile && await save({ type: "DELETE_PROFILE", profileId: profile.id })) {
+            setDeleting(false); resetForm(); setNotice("Profile deleted.");
+          }
+        }}>Delete profile</Button>
+      </DialogActions>
+    </Dialog>
+    <Snackbar open={!!notice} autoHideDuration={4000} onClose={() => setNotice("")} message={notice} />
+  </Container>;
+}

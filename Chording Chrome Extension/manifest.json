@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "120",
+  "name": "ChordScribe",
+  "version": "0.2.0",
+  "description": "Expand your own shortcuts in text fields. Choose profiles, keep control, and undo an expansion with Backspace.",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "ChordScribe"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

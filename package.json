@@ -1,0 +1,23 @@
+{
+  "name": "chordscribe",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Keyboard layout research and explicit text shortcuts.",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "Chording Chrome Extension",
+    "Layout Optimization"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @chordscribe/extension",
+    "typecheck": "npm run typecheck --workspace @chordscribe/extension",
+    "test": "npm run test --workspace @chordscribe/extension && npm run test --workspace @chordscribe/layout",
+    "check": "npm run typecheck && npm test && npm run build",
+    "benchmark": "node scripts/benchmark.cjs",
+    "preview": "node scripts/preview.mjs",
+    "package": "npm run build && node scripts/package-extension.mjs",
+    "layout": "npm run start --workspace @chordscribe/layout"
+  }
+}
