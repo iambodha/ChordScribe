@@ -1,7 +1,10 @@
 const { EFFORT_LIMIT, SAME_FINGER_PENALTY, SAME_HAND_PENALTY } = require('./config');
 
 module.exports = class Runner {
-  constructor(text, options) {
+  constructor(text, options = {}) {
+    if (typeof text !== 'string' || !text.trim()) {
+      throw new Error('Provide a non-empty text corpus. See examples/corpus.txt.');
+    }
     this.text = text.trim();
     this.options = options;
   }
@@ -12,6 +15,11 @@ module.exports = class Runner {
       sameFingerPenalty = SAME_FINGER_PENALTY,
       sameHandPenalty   = SAME_HAND_PENALTY
     } = this.options;
+    if (!Number.isFinite(effortLimit) || effortLimit <= 0 ||
+        !Number.isFinite(sameFingerPenalty) || sameFingerPenalty < 0 ||
+        !Number.isFinite(sameHandPenalty) || sameHandPenalty < 0) {
+      throw new Error('Effort limit must be positive and finite; penalties must be non-negative and finite.');
+    }
     const mapping = layout.toMetrics();
     const text = this.text;
     const L_SHIFT = mapping['l-shift'];
@@ -29,8 +37,15 @@ module.exports = class Runner {
     let shiftingOverheads = 0;
     let prevKey = mapping[' '];
     let prevShift = false;
+    let cycleEffort = -1;
 
     while (effort < effortLimit) {
+      if (position % text.length === 0) {
+        if (effort === cycleEffort) {
+          throw new Error('Corpus produces no effort for this layout; include supported, non-zero-effort characters.');
+        }
+        cycleEffort = effort;
+      }
       const i = position++ % text.length;
       const symbol = text[i];
       const key = mapping[symbol];

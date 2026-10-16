@@ -1,0 +1,30 @@
+A keyboard is a small interface with a large place in everyday work.
+We write notes, explain decisions, review code, and ask questions. The
+words vary with the task. A useful typing tool should be understandable,
+easy to pause, and predictable when a shortcut expands.
+
+This sample is deliberately small. It mixes plain English sentences with
+punctuation, numbers such as 12 and 48, and a little code. It is a smoke
+test for the layout model, not a representative language dataset.
+
+A researcher may compare layouts by assigning movement and effort costs
+to keys. That simulation can expose a tradeoff: a layout may reduce one
+finger's travel while placing more work on another. The model cannot tell
+us how quickly a person will learn a layout, how comfortable it will feel,
+or whether they will keep using it after a week.
+
+function greet(name) {
+  const message = "Hello, " + name + "!";
+  return message;
+}
+
+Explicit shortcuts solve a different problem. If I choose ty as a
+shortcut for thank you, the program should expand it only at a word
+boundary and preserve the surrounding text. If I change my mind, a single
+Backspace should restore what I typed. Password fields and rich text
+editors should remain outside the supported path.
+
+For a meaningful evaluation, use a corpus that reflects the intended
+work, keep its version and hash, and compare the same settings. Record
+the limitations as carefully as the result. A model score is an aid to
+investigation; it is not a measured improvement in human typing speed.

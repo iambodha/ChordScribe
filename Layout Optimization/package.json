@@ -1,12 +1,13 @@
 {
-  "name": "keyboard-layout",
+  "name": "@chordscribe/layout",
   "version": "1.0.0",
   "description": "Optimizing Keyboard Layout Using Genetic Algorithms",
   "private": true,
   "main": "src/index.js",
   "scripts": {
     "start": "node --max-old-space-size=6144 src/index.js",
-    "test": "node src/compare.js"
+    "test": "mocha --require ./test/helper.js --reporter dot --timeout 10000 test/*_test.js",
+    "compare": "node src/compare.js"
   },
   "dependencies": {
     "blessed": "^0.1.81",

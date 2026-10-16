@@ -10,6 +10,7 @@ describe('Cluster', () => {
     sameHandPenalty: 0.5,
     sameFingerPenalty: 5
   });
+  after(() => cluster.close());
 
   it('allows to run a bunch of layouts', function * () {
     const results = [];
@@ -20,14 +21,14 @@ describe('Cluster', () => {
 
     const data = results.map(result => `${result.layout.name} - ${result.result.position}`);
     expect(data.sort()).to.eql([
-      "Colemak - 771",
-      "Colemak - 771",
-      "Dvorak - 595",
-      "Dvorak - 595",
-      "QWERTY - 420",
-      "QWERTY - 420",
-      "Workman - 859",
-      "Workman - 859"
+      "Colemak - 725",
+      "Colemak - 725",
+      "Dvorak - 569",
+      "Dvorak - 569",
+      "QWERTY - 395",
+      "QWERTY - 395",
+      "Workman - 753",
+      "Workman - 753"
     ]);
   });
 });

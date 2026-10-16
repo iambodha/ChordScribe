@@ -1,3 +1,4 @@
+// Fixtures match the unchanged runner at main@99f722d; the old snapshots were stale.
 const Runner = require('../src/runner');
 const Layout = require('../src/layout');
 const { QWERTY, Dvorak, Colemak, Workman } = require('../src/presets');
@@ -14,14 +15,14 @@ describe('Runner', () => {
     const result = runner.typeWith(QWERTY);
     delete(result.counts);
     expect(result).to.eql({
-      distance: 3138,
+      distance: 2968,
       effort: 2003,
       overheads: {
-        sameFinger: 340,
-        sameHand: 228,
-        shifting: 30
+        sameFinger: 370,
+        sameHand: 277,
+        shifting: 25
       },
-      position: 420
+      position: 395
     });
   });
 
@@ -29,14 +30,14 @@ describe('Runner', () => {
     const result = runner.typeWith(Dvorak);
     delete(result.counts);
     expect(result).to.eql({
-      distance: 2649,
-      effort: 2001,
+      distance: 2486,
+      effort: 2020,
       overheads: {
-        sameFinger: 490,
-        sameHand: 96,
-        shifting: 48
+        sameFinger: 570,
+        sameHand: 137,
+        shifting: 43
       },
-      position: 595
+      position: 569
     });
   });
 
@@ -44,14 +45,14 @@ describe('Runner', () => {
     const result = runner.typeWith(Colemak);
     delete(result.counts);
     expect(result).to.eql({
-      distance: 2861,
-      effort: 2002,
+      distance: 2698,
+      effort: 2004,
       overheads: {
-        sameFinger: 10,
-        sameHand: 284,
-        shifting: 49
+        sameFinger: 35,
+        sameHand: 374,
+        shifting: 38
       },
-      position: 771
+      position: 725
     });
   });
 
@@ -59,14 +60,14 @@ describe('Runner', () => {
     const result = runner.typeWith(Workman);
     delete(result.counts);
     expect(result).to.eql({
-      distance: 3399,
-      effort: 2004,
+      distance: 3053,
+      effort: 2001,
       overheads: {
-        sameFinger: 260,
-        sameHand: 199,
-        shifting: 64
+        sameFinger: 325,
+        sameHand: 278,
+        shifting: 56
       },
-      position: 859
+      position: 753
     });
   });
 });

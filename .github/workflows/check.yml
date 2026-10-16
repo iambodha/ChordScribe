@@ -1,0 +1,29 @@
+name: Check ChordScribe
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: node scripts/benchmark.cjs --json > benchmark.json
+      - run: npm run package
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: chordscribe-0.2.0
+          path: |
+            artifacts/*.zip
+            benchmark.json
+          if-no-files-found: error

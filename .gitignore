@@ -171,3 +171,17 @@ text
 *.json
 *.csv
 *.png
+
+# Build/configuration files are source, not generated datasets.
+!package.json
+!package-lock.json
+!Chording Chrome Extension/package.json
+!Chording Chrome Extension/manifest.json
+!Chording Chrome Extension/tsconfig.json
+!examples/corpus.txt
+!examples/shortcuts.json
+!docs/benchmark.json
+.DS_Store
+artifacts/
+.preview/
+!docs/images/*.png
